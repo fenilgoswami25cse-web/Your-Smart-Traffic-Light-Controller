@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Smart Traffic Light Controller — Digital Electronics</title>
+<style>
+/* ══════════════════════════════════════════════════════════
+   DESIGN TOKENS
+══════════════════════════════════════════════════════════ */
+:root{
+  --bg0:#080d18;
+  --bg1:#0d1626;
+  --bg2:#121e32;
+  --bg3:#172440;
+  --surface:#1c2d47;
+  --surface2:#203350;
+  --border:#253d5e;
+  --border2:#2e4f78;
+  --text1:#dce8f8;
+  --text2:#7ea3c4;
+  --text3:#3d6080;
+  --cyan:#06b6d4;
+  --cyan-dim:rgba(6,182,212,0.12);
+  --green:#22c55e;
+  --green-glow:rgba(34,197,94,0.35);
+  --green-dim:rgba(34,197,94,0.12);
+  --yellow:#f59e0b;
+  --yellow-glow:rgba(245,158,11,0.35);
+  --yellow-dim:rgba(245,158,11,0.12);
+  --red:#ef4444;
+  --red-glow:rgba(239,68,68,0.35);
+  --red-dim:rgba(239,68,68,0.12);
+  --blue:#3b82f6;
+  --purple:#8b5cf6;
+  --r:10px;
+  --r-sm:6px;
+  --shadow:0 4px 20px rgba(0,0,0,0.5);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Segoe UI',system-ui,sans-serif;
+  background:var(--bg0);
+  color:var(--text1);
+  min-height:100vh;
+  overflow-x:hidden;
+  padding-bottom:36px;
+}
+
+/* ── HEADER ─────────────────────────────────────────────── */
+header{
+  background:linear-gradient(90deg,#0a1220 0%,#0f1e36 100%);
+  border-bottom:1px solid var(--border);
+  padding:10px 20px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  position:sticky;top:0;z-index:200;
+}
+.hd-brand{display:flex;align-items:center;gap:10px}
+.hd-icon{
+  width:34px;height:34px;border-radius:8px;
+  background:linear-gradient(135deg,var(--blue),var(--cyan));
+  display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;
+}
+.hd-title{font-size:1rem;font-weight:700;letter-spacing:.01em;line-height:1.2}
+.hd-sub{font-size:.65rem;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin-top:1px}
+.hd-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.status-pill{
+  display:flex;align-items:center;gap:5px;
+  padding:4px 10px;border-radius:20px;
+  font-size:.68rem;font-weight:700;letter-spacing:.04em;
+  border:1px solid transparent;
+}
+.pill-idle {background:rgba(59,130,246,.1);color:#93c5fd;border-color:rgba(59,130,246,.3)}
+.pill-run  {background:rgba(34,197,94,.1);color:#86efac;border-color:rgba(34,197,94,.3);animation:pulse-pill 1.5s infinite}
+.pill-pause{background:rgba(245,158,11,.1);color:#fcd34d;border-color:rgba(245,158,11,.3)}
+.dot{width:6px;height:6px;border-radius:50%}
+.dot-green{background:var(--green);box-shadow:0 0 6px var(--green)}
+.dot-amber{background:var(--yellow);box-shadow:0 0 6px var(--yellow)}
+.dot-blue {background:var(--blue); box-shadow:0 0 6px var(--blue)}
+@keyframes pulse-pill{0%,100%{opacity:1}50%{opacity:.7}}
+
+/* ── NAV ─────────────────────────────────────────────────── */
+nav{
+  background:var(--bg1);
+  border-bottom:1px solid var(--border);
+  display:flex;gap:0;
+  overflow-x:auto;scrollbar-width:none;
+  padding:0 16px;
+}
+nav::-webkit-scrollbar{display:none}
+.tab{
+  padding:10px 16px;
+  font-size:.75rem;font-weight:600;
+  color:var(--text3);cursor:pointer;
+  border:none;background:none;
+  border-bottom:2px solid transparent;
+  white-space:nowrap;
+  text-transform:uppercase;letter-spacing:.05em;
+  transition:color .2s,border-color .2s;
+  display:flex;align-items:center;gap:5px;
+}
+.tab:hover{color:var(--text2)}
+.tab.active{color:var(--cyan);border-bottom-color:var(--cyan)}
+
+/* ── MAIN ────────────────────────────────────────────────── */
+main{padding:16px;max-width:1440px;margin:0 auto}
+.tab-panel{display:none}
+.tab-panel.active{display:block;animation:fade-in .2s ease}
+@keyframes fade-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ── PANEL / CARD ────────────────────────────────────────── */
+.panel{
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:16px;
+  box-shadow:var(--shadow);
+}
+.ptitle{
+  font-size:.72rem;font-weight:700;color:var(--cyan);
+  text-transform:uppercase;letter-spacing:.08em;
+  margin-bottom:12px;padding-bottom:8px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:6px;
+}
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r-sm);
+  padding:12px;
+}
+
+/* ── SIM LAYOUT ──────────────────────────────────────────── */
+.sim-layout{
+  display:grid;
+  grid-template-columns:1fr 300px;
+  gap:14px;align-items:start;
+}
+@media(max-width:860px){.sim-layout{grid-template-columns:1fr}}
+
+/* ── INTERSECTION CONTAINER ──────────────────────────────── */
+.ixn-wrap{
+  background:var(--bg1);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:12px;
+  aspect-ratio:1;
+  max-width:580px;
+  width:100%;
+  margin:0 auto;
+  box-shadow:inset 0 0 40px rgba(0,0,0,0.4);
+}
+#ixn-svg{width:100%;height:100%}
+
+/* ── CONTROLS PANEL ──────────────────────────────────────── */
+.ctrl-btns{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.btn{
+  padding:8px 14px;border-radius:var(--r-sm);
+  border:1px solid transparent;
+  font-size:.78rem;font-weight:700;
+  cursor:pointer;display:inline-flex;align-items:center;gap:5px;
+  transition:all .15s;letter-spacing:.02em;
+  white-space:nowrap;
+}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-green{background:rgba(34,197,94,.15);color:#86efac;border-color:rgba(34,197,94,.4)}
+.btn-green:hover:not(:disabled){background:rgba(34,197,94,.28);border-color:var(--green)}
+.btn-amber{background:rgba(245,158,11,.15);color:#fcd34d;border-color:rgba(245,158,11,.4)}
+.btn-amber:hover:not(:disabled){background:rgba(245,158,11,.28)}
+.btn-blue {background:rgba(59,130,246,.15);color:#93c5fd;border-color:rgba(59,130,246,.4)}
+.btn-blue:hover:not(:disabled){background:rgba(59,130,246,.28)}
+.btn-red  {background:rgba(239,68,68,.15);color:#fca5a5;border-color:rgba(239,68,68,.4)}
+.btn-red:hover:not(:disabled){background:rgba(239,68,68,.28)}
+.btn-ghost{background:transparent;color:var(--text2);border-color:var(--border)}
+.btn-ghost:hover:not(:disabled){background:var(--surface);color:var(--text1)}
+
+/* ── COUNTDOWN RING ──────────────────────────────────────── */
+.cd-wrap{position:relative;width:90px;height:90px;margin:0 auto 12px}
+.cd-wrap svg{transform:rotate(-90deg)}
+.cd-inner{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+}
+.cd-num{font-size:1.5rem;font-weight:800;font-family:'Courier New',monospace;line-height:1}
+.cd-lbl{font-size:.55rem;color:var(--text3);text-transform:uppercase;margin-top:2px}
+
+/* ── STATE BOXES ─────────────────────────────────────────── */
+.state-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.sbox{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);
+  padding:10px 8px;text-align:center;
+}
+.sbox-lbl{font-size:.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em}
+.sbox-val{font-size:1.2rem;font-weight:800;font-family:'Courier New',monospace;margin-top:2px}
+.sbox-sub{font-size:.65rem;color:var(--text2);margin-top:2px;line-height:1.3}
+
+/* ── SIGNAL INDICATOR STRIPS ─────────────────────────────── */
+.sig-strip{
+  display:flex;align-items:center;gap:6px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:8px 10px;margin-bottom:8px;
+}
+.sig-dir{font-size:.72rem;font-weight:700;color:var(--text2);width:28px;flex-shrink:0}
+.sig-dot{width:14px;height:14px;border-radius:50%;opacity:.12;transition:opacity .3s,box-shadow .3s}
+.sig-dot.on{opacity:1}
+.dot-r{background:var(--red)}   .dot-r.on{box-shadow:0 0 8px var(--red)}
+.dot-y{background:var(--yellow)}.dot-y.on{box-shadow:0 0 8px var(--yellow)}
+.dot-g{background:var(--green)} .dot-g.on{box-shadow:0 0 8px var(--green)}
+.sig-txt{font-size:.7rem;font-weight:700;margin-left:4px}
+
+/* ── BINARY REGISTER ─────────────────────────────────────── */
+.bit-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bitbox{
+  background:var(--surface);border:2px solid var(--border);border-radius:var(--r-sm);
+  width:42px;height:42px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  font-size:1.1rem;font-weight:800;font-family:'Courier New',monospace;
+  transition:all .25s;
+}
+.bitbox.b1{border-color:var(--cyan);color:var(--cyan);background:var(--cyan-dim)}
+.bitbox.b0{border-color:var(--border);color:var(--text2)}
+.bitbox-lbl{font-size:.5rem;color:var(--text3);text-transform:uppercase}
+.eq-box{
+  background:var(--bg1);border:1px solid var(--border2);border-radius:var(--r-sm);
+  padding:7px 10px;font-family:'Courier New',monospace;
+  font-size:.73rem;color:var(--cyan);white-space:pre;margin-left:auto;
+}
+
+/* ── SLIDERS / INPUTS ────────────────────────────────────── */
+.slider-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ig label{
+  display:block;font-size:.65rem;color:var(--text3);
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;
+}
+.ig input[type=range]{width:100%;accent-color:var(--cyan)}
+.ig .ig-val{font-size:.75rem;color:var(--cyan);font-weight:700;text-align:right}
+
+/* ── MINI STATE TABLE ────────────────────────────────────── */
+.ttbl{width:100%;border-collapse:collapse;font-size:.78rem;font-family:'Courier New',monospace}
+.ttbl th{
+  background:var(--surface2);color:var(--cyan);
+  padding:7px 10px;text-align:center;
+  border:1px solid var(--border);
+  font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;
+  white-space:nowrap;
+}
+.ttbl td{
+  padding:7px 10px;text-align:center;
+  border:1px solid var(--border);color:var(--text2);
+}
+.ttbl tr.arow{background:var(--cyan-dim)}
+.ttbl tr.arow td{color:var(--text1)}
+.gc{color:var(--green);font-weight:700}
+.yc{color:var(--yellow);font-weight:700}
+.rc{color:var(--red);font-weight:700}
+.cc{color:var(--cyan);font-weight:700}
+
+/* ── NOTE BOXES ──────────────────────────────────────────── */
+.note-warn{
+  background:var(--yellow-dim);border:1px solid rgba(245,158,11,.25);
+  border-radius:var(--r-sm);padding:8px 12px;font-size:.72rem;color:#fcd34d;
+}
+.note-info{
+  background:var(--cyan-dim);border:1px solid rgba(6,182,212,.25);
+  border-radius:var(--r-sm);padding:8px 12px;font-size:.72rem;color:#67e8f9;
+}
+.note-safe{
+  background:var(--green-dim);border:1px solid rgba(34,197,94,.25);
+  border-radius:var(--r-sm);padding:8px 12px;font-size:.72rem;color:#86efac;
+}
+
+/* ── FSM DIAGRAM PANEL ───────────────────────────────────── */
+#fsm-svg{width:100%;max-width:620px;display:block;margin:0 auto}
+
+/* ── DIGITAL LOGIC LAYOUT ────────────────────────────────── */
+.logic-layout{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media(max-width:720px){.logic-layout{grid-template-columns:1fr}}
+#circuit-svg{width:100%;max-width:640px;display:block;margin:0 auto}
+.formula-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.fcard{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:10px;
+}
+.fcard-head{font-size:.68rem;font-weight:700;margin-bottom:6px}
+.fbox{
+  background:var(--bg0);border:1px solid var(--border2);
+  border-radius:var(--r-sm);padding:6px 10px;
+  font-family:'Courier New',monospace;font-size:.73rem;
+  color:var(--cyan);white-space:pre-wrap;
+}
+
+/* ── TRUTH TABLE PANEL ───────────────────────────────────── */
+.truth-layout{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media(max-width:700px){.truth-layout{grid-template-columns:1fr}}
+
+/* ── SMART MODE ──────────────────────────────────────────── */
+.smart-layout{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:700px){.smart-layout{grid-template-columns:1fr}}
+.qbar-wrap{height:8px;background:var(--bg0);border-radius:4px;overflow:hidden;margin-top:4px}
+.qbar{height:100%;border-radius:4px;transition:width .5s,background .5s}
+.toggle-label{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.tswitch{
+  width:42px;height:22px;background:var(--border);border-radius:11px;position:relative;transition:background .2s;flex-shrink:0;
+}
+.tswitch::after{
+  content:'';position:absolute;width:16px;height:16px;border-radius:50%;
+  background:#fff;top:3px;left:3px;transition:left .2s;
+}
+input[type=checkbox]{display:none}
+input[type=checkbox]:checked+.tswitch{background:var(--blue)}
+input[type=checkbox]:checked+.tswitch::after{left:23px}
+.smart-dash{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+
+/* ── UTILS ───────────────────────────────────────────────── */
+.g12{display:grid;gap:12px}
+.g14{display:grid;gap:14px}
+.flex{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mb8{margin-bottom:8px}
+.mb12{margin-bottom:12px}
+.mb14{margin-bottom:14px}
+.mt10{margin-top:10px}
+.mt12{margin-top:12px}
+.sep{border:none;border-top:1px solid var(--border);margin:12px 0}
+.txs{font-size:.72rem}
+.tsm{font-size:.8rem}
+.tc{color:var(--cyan)}
+.tg{color:var(--green)}
+.ty{color:var(--yellow)}
+.tr{color:var(--red)}
+.tm{color:var(--text2)}
+.tmu{color:var(--text3)}
+.mono{font-family:'Courier New',monospace}
+.fw7{font-weight:700}
+
+/* ── TRAFFIC LIGHT CLASSES ───────────────────────────────── */
+.l-off{opacity:.1}
+.l-r{opacity:1;filter:drop-shadow(0 0 7px #ef4444)}
+.l-y{opacity:1;filter:drop-shadow(0 0 7px #f59e0b)}
+.l-g{opacity:1;filter:drop-shadow(0 0 7px #22c55e)}
+
+/* ── STATUSBAR ───────────────────────────────────────────── */
+#statusbar{
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--bg1);border-top:1px solid var(--border);
+  padding:5px 16px;font-size:.65rem;color:var(--text3);
+  display:flex;align-items:center;gap:16px;z-index:100;
+}
+#statusbar span{color:var(--text2)}
+
+/* ── RESPONSIVE ──────────────────────────────────────────── */
+@media(max-width:600px){
+  main{padding:10px}
+  .panel{padding:12px}
+  .slider-row{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ════════════ HEADER ════════════════════════════════════ -->
+<header>
+  <div class="hd-brand">
+    <div class="hd-icon">🚦</div>
+    <div>
+      <div class="hd-title">Smart Traffic Light Controller</div>
+      <div class="hd-sub">Digital Electronics Mini Project · BTech CSE</div>
+    </div>
+  </div>
+  <div class="hd-status">
+    <div class="status-pill pill-idle" id="hd-pill">
+      <span class="dot dot-blue" id="hd-dot"></span>
+      <span id="hd-pill-txt">IDLE</span>
+    </div>
+    <div class="status-pill" style="background:rgba(6,182,212,.08);color:var(--cyan);border-color:rgba(6,182,212,.25)">
+      <span id="hd-state">S0 · NS Green</span>
+    </div>
+    <div class="status-pill" style="background:rgba(139,92,246,.08);color:#c4b5fd;border-color:rgba(139,92,246,.25)">
+      Moore FSM · 4-State
+    </div>
+  </div>
+</header>
+
+<!-- ════════════ NAV ═══════════════════════════════════════ -->
+<nav>
+  <button class="tab active" data-tab="sim">🚦 Simulation</button>
+  <button class="tab" data-tab="fsm">🔁 FSM Diagram</button>
+  <button class="tab" data-tab="logic">⚡ Logic Design</button>
+  <button class="tab" data-tab="truth">📊 Truth Table</button>
+  <button class="tab" data-tab="smart">🤖 Smart Mode</button>
+</nav>
+
+<!-- ════════════ MAIN ══════════════════════════════════════ -->
+<main>
+
+<!-- ══════════ SIMULATION TAB ══════════════════════════════ -->
+<div id="tab-sim" class="tab-panel active">
+  <div class="sim-layout">
+
+    <!-- LEFT: Intersection + binary register -->
+    <div class="g14">
+      <!-- Intersection -->
+      <div class="panel" style="padding:12px">
+        <div class="ptitle">🛣️ Four-Way Intersection</div>
+        <div class="ixn-wrap">
+          <svg id="ixn-svg" viewBox="0 0 560 560" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+        <div class="note-info mt10 txs">
+          ⚠ Educational simulation — simplified timing model. Real controllers require all-red clearance, certified timing plans and fail-safe hardware.
+        </div>
+      </div>
+
+      <!-- Binary State Register (inline under intersection) -->
+      <div class="panel">
+        <div class="ptitle">🔢 Binary State Register</div>
+        <div class="flex">
+          <div>
+            <div class="txs tmu mb8">Current  Q1 Q0</div>
+            <div class="bit-row" id="bit-current">
+              <div class="bitbox b0"><span class="bitbox-lbl">Q1</span>0</div>
+              <div class="bitbox b0"><span class="bitbox-lbl">Q0</span>0</div>
+            </div>
+          </div>
+          <div style="font-size:1.3rem;color:var(--text3)">→</div>
+          <div>
+            <div class="txs tmu mb8">Next  D1 D0</div>
+            <div class="bit-row" id="bit-next">
+              <div class="bitbox b0"><span class="bitbox-lbl">D1</span>0</div>
+              <div class="bitbox b1"><span class="bitbox-lbl">D0</span>1</div>
+            </div>
+          </div>
+          <div class="eq-box" style="margin-left:auto">D0 = Q0'&#10;D1 = Q1 ⊕ Q0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Controls sidebar -->
+    <div class="g14">
+
+      <!-- Controls -->
+      <div class="panel">
+        <div class="ptitle">🎮 Controller</div>
+        <div class="ctrl-btns">
+          <button class="btn btn-green" id="btn-start"  onclick="simStart()">▶ Start</button>
+          <button class="btn btn-amber" id="btn-pause"  onclick="simPause()" disabled>⏸ Pause</button>
+          <button class="btn btn-blue"  id="btn-resume" onclick="simResume()" disabled>▶ Resume</button>
+          <button class="btn btn-red"   id="btn-reset"  onclick="simReset()">↺ Reset</button>
+          <button class="btn btn-ghost" id="btn-next"   onclick="simNextState()" disabled>⏭ Next</button>
+        </div>
+
+        <!-- Countdown ring -->
+        <div class="cd-wrap">
+          <svg width="90" height="90" viewBox="0 0 90 90">
+            <circle cx="45" cy="45" r="38" fill="none" stroke="var(--border)" stroke-width="6"/>
+            <circle id="cd-arc" cx="45" cy="45" r="38" fill="none" stroke="var(--cyan)"
+                    stroke-width="6" stroke-linecap="round"
+                    stroke-dasharray="238.76" stroke-dashoffset="0"/>
+          </svg>
+          <div class="cd-inner">
+            <div class="cd-num tc" id="cd-num">--</div>
+            <div class="cd-lbl">sec</div>
+          </div>
+        </div>
+
+        <!-- Current / Next state -->
+        <div class="state-row">
+          <div class="sbox">
+            <div class="sbox-lbl">Current State</div>
+            <div class="sbox-val tc" id="cur-state-lbl">S0</div>
+            <div class="sbox-sub tm" id="cur-state-desc">NS Green / EW Red</div>
+          </div>
+          <div class="sbox">
+            <div class="sbox-lbl">Next State</div>
+            <div class="sbox-val tmu" id="nxt-state-lbl">S1</div>
+            <div class="sbox-sub tmu" id="nxt-state-desc">NS Yellow / EW Red</div>
+          </div>
+        </div>
+
+        <!-- Signal indicators -->
+        <div class="sig-strip">
+          <span class="sig-dir">N↕S</span>
+          <span class="sig-dot dot-r" id="ns-r"></span>
+          <span class="sig-dot dot-y" id="ns-y"></span>
+          <span class="sig-dot dot-g" id="ns-g"></span>
+          <span class="sig-txt tc" id="ns-txt">GREEN</span>
+        </div>
+        <div class="sig-strip">
+          <span class="sig-dir">E↔W</span>
+          <span class="sig-dot dot-r" id="ew-r"></span>
+          <span class="sig-dot dot-y" id="ew-y"></span>
+          <span class="sig-dot dot-g" id="ew-g"></span>
+          <span class="sig-txt tr" id="ew-txt">RED</span>
+        </div>
+
+        <div class="txs tmu mt10" id="sim-msg">Press ▶ Start to begin.</div>
+      </div>
+
+      <!-- Phase settings -->
+      <div class="panel">
+        <div class="ptitle">⏱ Phase Duration</div>
+        <div class="slider-row">
+          <div class="ig">
+            <label>Green Phase (s)</label>
+            <input type="range" id="green-dur" min="3" max="30" value="8"
+                   oninput="updateDurLabel('green-dur','green-dur-val')">
+            <div class="ig-val" id="green-dur-val">8s</div>
+          </div>
+          <div class="ig">
+            <label>Yellow Phase (s)</label>
+            <input type="range" id="yellow-dur" min="1" max="10" value="3"
+                   oninput="updateDurLabel('yellow-dur','yellow-dur-val')">
+            <div class="ig-val" id="yellow-dur-val">3s</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- State sequence mini-table -->
+      <div class="panel">
+        <div class="ptitle">📋 State Sequence</div>
+        <div style="overflow-x:auto">
+          <table class="ttbl">
+            <thead><tr>
+              <th>State</th><th>Q1Q0</th><th>NS</th><th>EW</th><th>T (s)</th>
+            </tr></thead>
+            <tbody id="mini-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /right sidebar -->
+  </div><!-- /sim-layout -->
+</div>
+
+<!-- ══════════ FSM DIAGRAM TAB ══════════════════════════════ -->
+<div id="tab-fsm" class="tab-panel">
+  <div class="panel mb14">
+    <div class="ptitle">🔁 Moore FSM — State Transition Diagram</div>
+    <svg id="fsm-svg" viewBox="0 0 640 440" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3z" fill="#3d6080"/>
+        </marker>
+        <marker id="arr-a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3z" fill="#06b6d4"/>
+        </marker>
+        <filter id="glow-g"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="glow-y"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      <rect width="640" height="440" fill="#0d1626" rx="10"/>
+      <text x="320" y="22" text-anchor="middle" fill="#253d5e" font-size="11" font-family="monospace">Moore Machine — outputs depend only on current state</text>
+
+      <!-- S0 top-left -->
+      <g id="fsm-s0">
+        <circle cx="160" cy="130" r="56" fill="#121e32" stroke="#22c55e" stroke-width="2.5"/>
+        <circle cx="160" cy="130" r="48" fill="none" stroke="#22c55e" stroke-width=".8" opacity=".3"/>
+        <text x="160" y="122" text-anchor="middle" fill="#22c55e" font-size="16" font-weight="bold" font-family="monospace">S0</text>
+        <text x="160" y="139" text-anchor="middle" fill="#86efac" font-size="10" font-family="sans-serif">NS Green</text>
+        <text x="160" y="153" text-anchor="middle" fill="#86efac" font-size="10" font-family="sans-serif">EW Red</text>
+        <text x="160" y="168" text-anchor="middle" fill="#3d6080" font-size="9" font-family="monospace">Q1Q0 = 00</text>
+      </g>
+
+      <!-- S1 top-right -->
+      <g id="fsm-s1">
+        <circle cx="480" cy="130" r="56" fill="#121e32" stroke="#f59e0b" stroke-width="2.5"/>
+        <circle cx="480" cy="130" r="48" fill="none" stroke="#f59e0b" stroke-width=".8" opacity=".3"/>
+        <text x="480" y="122" text-anchor="middle" fill="#f59e0b" font-size="16" font-weight="bold" font-family="monospace">S1</text>
+        <text x="480" y="139" text-anchor="middle" fill="#fcd34d" font-size="10" font-family="sans-serif">NS Yellow</text>
+        <text x="480" y="153" text-anchor="middle" fill="#fcd34d" font-size="10" font-family="sans-serif">EW Red</text>
+        <text x="480" y="168" text-anchor="middle" fill="#3d6080" font-size="9" font-family="monospace">Q1Q0 = 01</text>
+      </g>
+
+      <!-- S2 bottom-right -->
+      <g id="fsm-s2">
+        <circle cx="480" cy="330" r="56" fill="#121e32" stroke="#22c55e" stroke-width="2.5"/>
+        <circle cx="480" cy="330" r="48" fill="none" stroke="#22c55e" stroke-width=".8" opacity=".3"/>
+        <text x="480" y="322" text-anchor="middle" fill="#22c55e" font-size="16" font-weight="bold" font-family="monospace">S2</text>
+        <text x="480" y="339" text-anchor="middle" fill="#86efac" font-size="10" font-family="sans-serif">EW Green</text>
+        <text x="480" y="353" text-anchor="middle" fill="#86efac" font-size="10" font-family="sans-serif">NS Red</text>
+        <text x="480" y="368" text-anchor="middle" fill="#3d6080" font-size="9" font-family="monospace">Q1Q0 = 10</text>
+      </g>
+
+      <!-- S3 bottom-left -->
+      <g id="fsm-s3">
+        <circle cx="160" cy="330" r="56" fill="#121e32" stroke="#f59e0b" stroke-width="2.5"/>
+        <circle cx="160" cy="330" r="48" fill="none" stroke="#f59e0b" stroke-width=".8" opacity=".3"/>
+        <text x="160" y="322" text-anchor="middle" fill="#f59e0b" font-size="16" font-weight="bold" font-family="monospace">S3</text>
+        <text x="160" y="339" text-anchor="middle" fill="#fcd34d" font-size="10" font-family="sans-serif">EW Yellow</text>
+        <text x="160" y="353" text-anchor="middle" fill="#fcd34d" font-size="10" font-family="sans-serif">NS Red</text>
+        <text x="160" y="368" text-anchor="middle" fill="#3d6080" font-size="9" font-family="monospace">Q1Q0 = 11</text>
+      </g>
+
+      <!-- Arrows -->
+      <path id="fa01" d="M216,118 Q320,78 424,118" fill="none" stroke="#3d6080" stroke-width="1.8" marker-end="url(#arr)"/>
+      <text x="320" y="88" text-anchor="middle" fill="#3d6080" font-size="9.5" font-family="monospace">Timer / CLK ↑</text>
+
+      <path id="fa12" d="M490,186 Q528,230 490,274" fill="none" stroke="#3d6080" stroke-width="1.8" marker-end="url(#arr)"/>
+      <text x="545" y="234" text-anchor="middle" fill="#3d6080" font-size="9.5" font-family="monospace">Timer</text>
+
+      <path id="fa23" d="M424,342 Q320,380 216,342" fill="none" stroke="#3d6080" stroke-width="1.8" marker-end="url(#arr)"/>
+      <text x="320" y="390" text-anchor="middle" fill="#3d6080" font-size="9.5" font-family="monospace">Timer / CLK ↑</text>
+
+      <path id="fa30" d="M150,274 Q112,230 150,186" fill="none" stroke="#3d6080" stroke-width="1.8" marker-end="url(#arr)"/>
+      <text x="96" y="234" text-anchor="middle" fill="#3d6080" font-size="9.5" font-family="monospace">Timer</text>
+
+      <text id="fsm-lbl" x="320" y="420" text-anchor="middle" fill="#06b6d4" font-size="12" font-family="monospace">Active: S0 — NS Green / EW Red</text>
+    </svg>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div class="panel">
+      <div class="ptitle">📐 State Encoding</div>
+      <div class="fbox">S0 = Q1Q0 = 00  (NS Green,  EW Red)
+S1 = Q1Q0 = 01  (NS Yellow, EW Red)
+S2 = Q1Q0 = 10  (NS Red,    EW Green)
+S3 = Q1Q0 = 11  (NS Red,    EW Yellow)</div>
+    </div>
+    <div class="panel">
+      <div class="ptitle">🧮 Next-State Equations</div>
+      <div class="fbox">D0 = NOT Q0          ← Q0 complement
+D1 = Q1 XOR Q0       ← Q1 ⊕ Q0
+
+Implements mod-4 counter:
+00 → 01 → 10 → 11 → 00</div>
+      <div class="note-safe mt10 txs">✅ SW simulation — setInterval() replaces hardware CLK pulse</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ LOGIC DESIGN TAB ═════════════════════════════ -->
+<div id="tab-logic" class="tab-panel">
+  <div class="panel mb14">
+    <div class="ptitle">⚡ Circuit Schematic — Two D Flip-Flop State Controller</div>
+    <svg id="circuit-svg" viewBox="0 0 720 400" xmlns="http://www.w3.org/2000/svg">
+      <rect width="720" height="400" fill="#080d18" rx="10"/>
+
+      <!-- ── Clock source ── -->
+      <rect x="18" y="168" width="58" height="34" rx="4" fill="#121e32" stroke="#3b82f6" stroke-width="1.5"/>
+      <text x="47" y="189" text-anchor="middle" fill="#93c5fd" font-size="10" font-family="monospace">CLK</text>
+      <polyline points="8,222 8,232 16,232 16,224 24,224 24,232 32,232 32,224 40,224 40,232 48,232" fill="none" stroke="#3b82f6" stroke-width="1.5"/>
+
+      <!-- ── CLK bus ── -->
+      <line x1="76" y1="185" x2="210" y2="185" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="5,2"/>
+      <line x1="210" y1="185" x2="210" y2="290" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="5,2"/>
+      <line x1="210" y1="290" x2="400" y2="290" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="5,2"/>
+      <!-- CLK to FF-Q1 -->
+      <line x1="210" y1="290" x2="210" y2="310" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="5,2"/>
+      <line x1="210" y1="310" x2="290" y2="310" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="5,2"/>
+      <!-- CLK to FF-Q0 -->
+      <line x1="400" y1="290" x2="400" y2="310" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="5,2"/>
+      <line x1="400" y1="310" x2="475" y2="310" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="5,2"/>
+      <text x="130" y="180" fill="#93c5fd" font-size="9" font-family="monospace">CLK Bus</text>
+
+      <!-- ── NOT gate (D0 = Q0') ── -->
+      <g transform="translate(122,142)">
+        <polygon points="0,0 28,13 0,26" fill="#121e32" stroke="#a855f7" stroke-width="1.5"/>
+        <circle cx="31" cy="13" r="4" fill="#121e32" stroke="#a855f7" stroke-width="1.5"/>
+        <text x="-3" y="17" fill="#c4b5fd" font-size="8" font-family="monospace" text-anchor="end">Q0</text>
+        <text x="10" y="17" fill="#c4b5fd" font-size="7.5" font-family="monospace">NOT</text>
+      </g>
+      <line x1="157" y1="155" x2="290" y2="155" stroke="#a855f7" stroke-width="1.5"/>
+      <line x1="76"  y1="155" x2="122" y2="155" stroke="#c4b5fd" stroke-width="1.5"/>
+
+      <!-- ── XOR gate (D1 = Q1⊕Q0) ── -->
+      <g transform="translate(122,68)">
+        <path d="M0,0 Q10,13 0,26 Q20,24 30,13 Q20,2 0,0Z" fill="#121e32" stroke="#f97316" stroke-width="1.5"/>
+        <path d="M-6,0 Q4,13 -6,26" fill="none" stroke="#f97316" stroke-width="1.5"/>
+        <text x="-3" y="10" fill="#fdba74" font-size="8" font-family="monospace" text-anchor="end">Q1</text>
+        <text x="-3" y="22" fill="#fdba74" font-size="8" font-family="monospace" text-anchor="end">Q0</text>
+        <text x="8" y="17" fill="#fdba74" font-size="7.5" font-family="monospace">XOR</text>
+      </g>
+      <line x1="152" y1="81"  x2="290" y2="81"  stroke="#f97316" stroke-width="1.5"/>
+      <line x1="76"  y1="78"  x2="122" y2="78"  stroke="#fdba74" stroke-width="1.5"/>
+      <!-- Q0 feedback to XOR -->
+      <line x1="106" y1="155" x2="106" y2="90"  stroke="#c4b5fd" stroke-width="1.2" stroke-dasharray="3,2"/>
+      <line x1="106" y1="90"  x2="122" y2="90"  stroke="#c4b5fd" stroke-width="1.2" stroke-dasharray="3,2"/>
+
+      <!-- ── FF-Q1 ── -->
+      <rect x="290" y="60" width="110" height="88" rx="6" fill="#121e32" stroke="#06b6d4" stroke-width="2" id="ff1-box"/>
+      <text x="345" y="86"  text-anchor="middle" fill="#06b6d4" font-size="11" font-weight="bold" font-family="monospace">D-FF</text>
+      <text x="345" y="103" text-anchor="middle" fill="#7ea3c4" font-size="9"  font-family="monospace">Q1 Register</text>
+      <text x="298" y="120" fill="#7ea3c4" font-size="8.5" font-family="monospace">D1→</text>
+      <text x="298" y="135" fill="#93c5fd" font-size="8.5" font-family="monospace">CLK↗</text>
+      <text x="370" y="120" fill="#86efac" font-size="8.5" font-family="monospace">→ Q1</text>
+
+      <!-- ── FF-Q0 ── -->
+      <rect x="475" y="60" width="110" height="88" rx="6" fill="#121e32" stroke="#06b6d4" stroke-width="2" id="ff0-box"/>
+      <text x="530" y="86"  text-anchor="middle" fill="#06b6d4" font-size="11" font-weight="bold" font-family="monospace">D-FF</text>
+      <text x="530" y="103" text-anchor="middle" fill="#7ea3c4" font-size="9"  font-family="monospace">Q0 Register</text>
+      <text x="483" y="120" fill="#7ea3c4" font-size="8.5" font-family="monospace">D0→</text>
+      <text x="483" y="135" fill="#93c5fd" font-size="8.5" font-family="monospace">CLK↗</text>
+      <text x="555" y="120" fill="#86efac" font-size="8.5" font-family="monospace">→ Q0</text>
+
+      <!-- ── Q1 output + feedback ── -->
+      <line x1="585" y1="104" x2="620" y2="104" stroke="#86efac" stroke-width="1.5"/>
+      <line x1="620" y1="104" x2="620" y2="50"  stroke="#86efac" stroke-width="1.5"/>
+      <line x1="620" y1="50"  x2="56"  y2="50"  stroke="#86efac" stroke-width="1.5"/>
+      <line x1="56"  y1="50"  x2="56"  y2="78"  stroke="#86efac" stroke-width="1.5"/>
+      <line x1="56"  y1="78"  x2="76"  y2="78"  stroke="#86efac" stroke-width="1.5"/>
+      <text x="630" y="107" fill="#86efac" font-size="8.5" font-family="monospace">Q1</text>
+
+      <!-- ── Q0 output + feedback ── -->
+      <line x1="400" y1="104" x2="440" y2="104" stroke="#c4b5fd" stroke-width="1.5"/>
+      <line x1="440" y1="104" x2="440" y2="158" stroke="#c4b5fd" stroke-width="1.5"/>
+      <line x1="76"  y1="158" x2="122" y2="158" stroke="#c4b5fd" stroke-width="1.5"/>
+      <text x="450" y="107" fill="#c4b5fd" font-size="8.5" font-family="monospace">Q0 fb</text>
+
+      <!-- ── Output Decoder box ── -->
+      <rect x="635" y="130" width="65" height="130" rx="5" fill="#121e32" stroke="#22c55e" stroke-width="1.5"/>
+      <text x="667" y="152" text-anchor="middle" fill="#22c55e" font-size="9"  font-weight="bold" font-family="monospace">OUT</text>
+      <text x="667" y="164" text-anchor="middle" fill="#22c55e" font-size="8"  font-family="monospace">DEC</text>
+      <circle cx="646" cy="182" r="5" fill="#22c55e"/><text x="656" y="186" fill="#86efac" font-size="8.5" font-family="monospace">NS_G</text>
+      <circle cx="646" cy="202" r="5" fill="#f59e0b"/><text x="656" y="206" fill="#fcd34d" font-size="8.5" font-family="monospace">NS_Y</text>
+      <circle cx="646" cy="222" r="5" fill="#ef4444"/><text x="656" y="226" fill="#fca5a5" font-size="8.5" font-family="monospace">NS_R</text>
+      <circle cx="646" cy="242" r="5" fill="#22c55e"/><text x="656" y="246" fill="#86efac" font-size="8.5" font-family="monospace">EW_G</text>
+      <circle cx="646" cy="262" r="5" fill="#f59e0b"/><text x="656" y="266" fill="#fcd34d" font-size="8.5" font-family="monospace">EW_Y</text>
+      <!-- Q wires to decoder -->
+      <line x1="620" y1="104" x2="628" y2="104" stroke="#86efac" stroke-width="1.2" stroke-dasharray="3,2"/>
+      <line x1="628" y1="104" x2="628" y2="168" stroke="#86efac" stroke-width="1.2" stroke-dasharray="3,2"/>
+      <line x1="628" y1="168" x2="635" y2="168" stroke="#86efac" stroke-width="1.2" stroke-dasharray="3,2"/>
+
+      <!-- Note -->
+      <text x="18" y="370" fill="#253d5e" font-size="8.5" font-family="sans-serif">
+        ⚠ Software simulation only. Physical ICs: 74HC74 (D-FF), 74HC86 (XOR), 74HC04 (NOT), 74HC08 (AND), 555 Timer CLK, 5V LEDs.
+      </text>
+    </svg>
+  </div>
+
+  <!-- Output decoder boolean expressions -->
+  <div class="panel">
+    <div class="ptitle">📐 Output Decoder — Boolean Expressions</div>
+    <div class="formula-grid">
+      <div class="fcard">
+        <div class="fcard-head tg">NS_GREEN</div>
+        <div class="fbox">NS_G = Q1' · Q0'
+→ Active in S0 only</div>
+      </div>
+      <div class="fcard">
+        <div class="fcard-head ty">NS_YELLOW</div>
+        <div class="fbox">NS_Y = Q1' · Q0
+→ Active in S1 only</div>
+      </div>
+      <div class="fcard">
+        <div class="fcard-head tr">NS_RED</div>
+        <div class="fbox">NS_R = Q1
+→ Active in S2, S3</div>
+      </div>
+      <div class="fcard">
+        <div class="fcard-head tg">EW_GREEN</div>
+        <div class="fbox">EW_G = Q1 · Q0'
+→ Active in S2 only</div>
+      </div>
+      <div class="fcard">
+        <div class="fcard-head ty">EW_YELLOW</div>
+        <div class="fbox">EW_Y = Q1 · Q0
+→ Active in S3 only</div>
+      </div>
+      <div class="fcard">
+        <div class="fcard-head tr">EW_RED</div>
+        <div class="fbox">EW_R = Q1'
+→ Active in S0, S1</div>
+      </div>
+    </div>
+    <div class="note-safe mt10 txs">
+      ✅ Safety proof: NS_G = Q1'·Q0' and EW_G = Q1·Q0' → NS_G · EW_G = Q1'·Q1·Q0' = 0. Both green signals <strong>cannot</strong> be active simultaneously.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ TRUTH TABLE TAB ══════════════════════════════ -->
+<div id="tab-truth" class="tab-panel">
+  <div class="truth-layout">
+    <!-- State transition table -->
+    <div class="panel">
+      <div class="ptitle">📊 State Transition Table</div>
+      <div style="overflow-x:auto">
+        <table class="ttbl" id="state-tbl">
+          <thead><tr>
+            <th>State</th><th>Q1</th><th>Q0</th>
+            <th>Next</th><th>D1</th><th>D0</th>
+            <th>NS</th><th>EW</th>
+          </tr></thead>
+          <tbody id="state-tbl-body"></tbody>
+        </table>
+      </div>
+      <div class="note-info mt10 txs">Highlighted row tracks the live simulation state.</div>
+    </div>
+
+    <!-- Output truth table -->
+    <div class="g14">
+      <div class="panel">
+        <div class="ptitle">🔢 Output Truth Table</div>
+        <div style="overflow-x:auto">
+          <table class="ttbl">
+            <thead><tr>
+              <th>Q1</th><th>Q0</th>
+              <th>NS_G</th><th>NS_Y</th><th>NS_R</th>
+              <th>EW_G</th><th>EW_Y</th><th>EW_R</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>0</td><td>0</td><td class="gc">1</td><td>0</td><td>0</td><td>0</td><td>0</td><td class="rc">1</td></tr>
+              <tr><td>0</td><td>1</td><td>0</td><td class="yc">1</td><td>0</td><td>0</td><td>0</td><td class="rc">1</td></tr>
+              <tr><td>1</td><td>0</td><td>0</td><td>0</td><td class="rc">1</td><td class="gc">1</td><td>0</td><td>0</td></tr>
+              <tr><td>1</td><td>1</td><td>0</td><td>0</td><td class="rc">1</td><td>0</td><td class="yc">1</td><td>0</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="ptitle">🧮 Next-State Verification</div>
+        <div style="overflow-x:auto">
+          <table class="ttbl">
+            <thead><tr><th>State</th><th>Q1</th><th>Q0</th><th>D1=Q1⊕Q0</th><th>D0=Q0'</th><th>→ Next</th></tr></thead>
+            <tbody>
+              <tr><td class="cc">S0</td><td>0</td><td>0</td><td>0</td><td>1</td><td class="cc">S1</td></tr>
+              <tr><td class="cc">S1</td><td>0</td><td>1</td><td>1</td><td>0</td><td class="cc">S2</td></tr>
+              <tr><td class="cc">S2</td><td>1</td><td>0</td><td>1</td><td>1</td><td class="cc">S3</td></tr>
+              <tr><td class="cc">S3</td><td>1</td><td>1</td><td>0</td><td>0</td><td class="cc">S0</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note-safe mt10 txs">D0 = NOT Q0 and D1 = Q1 XOR Q0 verified for all four states.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ SMART MODE TAB ═══════════════════════════════ -->
+<div id="tab-smart" class="tab-panel">
+  <div class="panel mb14">
+    <div class="ptitle">🤖 Smart Adaptive Control</div>
+    <div class="note-warn mb12 txs">
+      ⚠ All inputs are <strong>simulated</strong> — no real sensors. Safety constraints enforced: conflicting green directions cannot activate simultaneously.
+    </div>
+    <div class="flex mb14">
+      <label class="toggle-label">
+        <input type="checkbox" id="smart-toggle" onchange="toggleSmartMode()">
+        <span class="tswitch"></span>
+        <span class="tsm fw7">Enable Smart Mode</span>
+      </label>
+      <span class="status-pill pill-idle" id="smart-badge">DISABLED</span>
+    </div>
+
+    <div id="smart-panel" style="opacity:.4;pointer-events:none;transition:opacity .3s">
+      <div class="smart-layout mb14">
+
+        <!-- Density controls -->
+        <div class="card">
+          <div class="ptitle" style="font-size:.7rem">🚗 Vehicle Density</div>
+          <div class="g12">
+            <div class="ig">
+              <label>North-South</label>
+              <input type="range" id="ns-density" min="0" max="10" value="5" oninput="updateSmartDensity()">
+              <div class="flex">
+                <div class="qbar-wrap" style="flex:1"><div class="qbar" id="ns-qbar" style="width:50%;background:var(--green)"></div></div>
+                <span class="ig-val" id="ns-density-val">5</span>
+              </div>
+            </div>
+            <div class="ig">
+              <label>East-West</label>
+              <input type="range" id="ew-density" min="0" max="10" value="3" oninput="updateSmartDensity()">
+              <div class="flex">
+                <div class="qbar-wrap" style="flex:1"><div class="qbar" id="ew-qbar" style="width:30%;background:var(--yellow)"></div></div>
+                <span class="ig-val" id="ew-density-val">3</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Adaptive timing -->
+        <div class="card">
+          <div class="ptitle" style="font-size:.7rem">⚙ Adaptive Timing Limits</div>
+          <div class="g12">
+            <div class="ig">
+              <label>Min Green (s)</label>
+              <input type="range" id="min-green" min="3" max="10" value="5" oninput="updateSmartLabel('min-green','min-green-val')">
+              <div class="ig-val" id="min-green-val">5s</div>
+            </div>
+            <div class="ig">
+              <label>Max Green (s)</label>
+              <input type="range" id="max-green" min="10" max="40" value="20" oninput="updateSmartLabel('max-green','max-green-val')">
+              <div class="ig-val" id="max-green-val">20s</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Emergency override -->
+        <div class="card">
+          <div class="ptitle" style="font-size:.7rem">🚨 Emergency Vehicle Override</div>
+          <p class="txs tm mb12">Simulated priority request. Green granted after safe yellow clearance. Conflicting green prevented.</p>
+          <div class="g12">
+            <button class="btn btn-red" onclick="requestEmergency('NS')" style="font-size:.76rem">🚑 Emergency: NS Direction</button>
+            <button class="btn btn-red" onclick="requestEmergency('EW')" style="font-size:.76rem">🚑 Emergency: EW Direction</button>
+            <div class="txs tmu" id="emergency-status">No emergency request pending.</div>
+          </div>
+        </div>
+
+        <!-- Pedestrian -->
+        <div class="card">
+          <div class="ptitle" style="font-size:.7rem">🚶 Pedestrian Crossing</div>
+          <p class="txs tm mb12">Simulated button press. All-red phase inserted at next safe boundary. Request cancelled after serving.</p>
+          <div class="g12">
+            <button class="btn btn-blue" onclick="requestPedestrian()" style="font-size:.76rem">🚶 Request Crossing</button>
+            <div class="txs tmu" id="pedestrian-status">No pedestrian request pending.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dashboard -->
+      <div class="card">
+        <div class="ptitle" style="font-size:.7rem">📊 Live Dashboard</div>
+        <div class="smart-dash">
+          <div class="sbox">
+            <div class="sbox-lbl">NS Waiting</div>
+            <div class="sbox-val tg" id="smart-ns-wait">5</div>
+            <div class="sbox-sub">vehicles</div>
+          </div>
+          <div class="sbox">
+            <div class="sbox-lbl">EW Waiting</div>
+            <div class="sbox-val ty" id="smart-ew-wait">3</div>
+            <div class="sbox-sub">vehicles</div>
+          </div>
+          <div class="sbox">
+            <div class="sbox-lbl">Computed Green</div>
+            <div class="sbox-val tc" id="smart-computed">--</div>
+            <div class="sbox-sub">seconds</div>
+          </div>
+          <div class="sbox">
+            <div class="sbox-lbl">Override</div>
+            <div class="sbox-val tr" id="smart-override">NONE</div>
+            <div class="sbox-sub">active</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- ── STATUS BAR ─────────────────────────────────────────── -->
+<div id="statusbar">
+  <span>🚦 Smart Traffic Light Controller</span>
+  State: <span id="sb-state">S0 — NS Green / EW Red</span>
+  &nbsp;|&nbsp; Timer: <span id="sb-timer">--</span>
+  &nbsp;|&nbsp; HTML · CSS · Vanilla JS
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+   JAVASCRIPT — FSM Logic (preserved + improved)
+══════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+/* ── STATE DEFINITIONS ────────────────────────────────────── */
+const STATES = [
+  { id:'S0', q1:0, q0:0, label:'S0', desc:'NS Green / EW Red',    ns:'green',  ew:'red',    d1:0, d0:1, next:'S1' },
+  { id:'S1', q1:0, q0:1, label:'S1', desc:'NS Yellow / EW Red',   ns:'yellow', ew:'red',    d1:1, d0:0, next:'S2' },
+  { id:'S2', q1:1, q0:0, label:'S2', desc:'NS Red / EW Green',    ns:'red',    ew:'green',  d1:1, d0:1, next:'S3' },
+  { id:'S3', q1:1, q0:1, label:'S3', desc:'NS Red / EW Yellow',   ns:'red',    ew:'yellow', d1:0, d0:0, next:'S0' },
+];
+
+const app = {
+  state:0, running:false, paused:false,
+  timer:null, countdown:0, maxCountdown:0,
+  greenDur:8, yellowDur:3,
+  smartMode:false, emergencyDir:null, pedestrianReq:false,
+  nsDensity:5, ewDensity:3,
+  _hiddenAt:null,
+};
+
+/* ── VEHICLES ─────────────────────────────────────────────── */
+// Each vehicle has position and lane info
+const veh = {
+  // NS southbound (right lane of NS road)
+  ns_s: [{y:40},{y:120},{y:200},{y:380},{y:460}],
+  // NS northbound (left lane of NS road)
+  ns_n: [{y:520},{y:440},{y:360},{y:180},{y:100}],
+  // EW eastbound (bottom lane of EW road)
+  ew_e: [{x:40},{x:130},{x:220},{x:380},{x:460}],
+  // EW westbound (top lane of EW road)
+  ew_w: [{x:520},{x:440},{x:360},{x:180},{x:90}],
+};
+let animId = null, lastAT = 0;
+
+/* ── TAB NAVIGATION ───────────────────────────────────────── */
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    const name = btn.dataset.tab;
+    document.getElementById('tab-' + name).classList.add('active');
+    btn.classList.add('active');
+    if (name === 'sim') renderIntersection();
+  });
+});
+
+/* ── SVG HELPER ───────────────────────────────────────────── */
+function svgEl(tag, attrs) {
+  const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k,v] of Object.entries(attrs||{})) e.setAttribute(k, v);
+  return e;
+}
+
+/* ── INTERSECTION RENDER ──────────────────────────────────── */
+function renderIntersection() {
+  const svg = document.getElementById('ixn-svg');
+  svg.innerHTML = '';
+
+  const W=560, H=560, C=280, RW=110; // road width
+  const HL=C-RW/2, HR=C+RW/2;        // road horizontal limits
+
+  const a = (tag, attrs) => { const e=svgEl(tag,attrs); svg.appendChild(e); return e; };
+
+  // ── Backgrounds ──
+  // Grass/ground
+  a('rect',{x:0,y:0,width:W,height:H,fill:'#111c0d'});
+
+  // Road patches (asphalt)
+  a('rect',{x:HL,y:0,  width:RW,height:H,  fill:'#1e1e1e'}); // NS road
+  a('rect',{x:0,  y:HL,width:W, height:RW, fill:'#1e1e1e'}); // EW road
+  a('rect',{x:HL, y:HL,width:RW,height:RW, fill:'#1a1a1a'}); // intersection box
+
+  // ── Kerb lines (road edges) ──
+  const kc = '#2a2a2a', kw = 3;
+  // NS road edges
+  a('line',{x1:HL,y1:0,x2:HL,y2:HL,stroke:kc,'stroke-width':kw});
+  a('line',{x1:HR,y1:0,x2:HR,y2:HL,stroke:kc,'stroke-width':kw});
+  a('line',{x1:HL,y1:HR,x2:HL,y2:H,stroke:kc,'stroke-width':kw});
+  a('line',{x1:HR,y1:HR,x2:HR,y2:H,stroke:kc,'stroke-width':kw});
+  // EW road edges
+  a('line',{x1:0, y1:HL,x2:HL,y2:HL,stroke:kc,'stroke-width':kw});
+  a('line',{x1:0, y1:HR,x2:HL,y2:HR,stroke:kc,'stroke-width':kw});
+  a('line',{x1:HR,y1:HL,x2:W, y2:HL,stroke:kc,'stroke-width':kw});
+  a('line',{x1:HR,y1:HR,x2:W, y2:HR,stroke:kc,'stroke-width':kw});
+
+  // ── Centre lane markings ──
+  const lc='#4a4520', lw=2;
+  const dashH=22, gapH=14;
+  // NS centre dashes (above intersection)
+  for(let y=6; y<HL-4; y+=dashH+gapH)
+    a('rect',{x:C-lw,y,width:lw*2,height:dashH,fill:lc,rx:1});
+  // NS centre dashes (below intersection)
+  for(let y=HR+6; y<H; y+=dashH+gapH)
+    a('rect',{x:C-lw,y,width:lw*2,height:dashH,fill:lc,rx:1});
+  // EW centre dashes (left of intersection)
+  for(let x=6; x<HL-4; x+=dashH+gapH)
+    a('rect',{x,y:C-lw,width:dashH,height:lw*2,fill:lc,rx:1});
+  // EW centre dashes (right of intersection)
+  for(let x=HR+6; x<W; x+=dashH+gapH)
+    a('rect',{x,y:C-lw,width:dashH,height:lw*2,fill:lc,rx:1});
+
+  // ── Stop lines ──
+  const slc='#cccccc', slw=4;
+  a('rect',{x:HL,y:HL-slw,width:RW,height:slw,fill:slc,opacity:.7}); // North
+  a('rect',{x:HL,y:HR,     width:RW,height:slw,fill:slc,opacity:.7}); // South
+  a('rect',{x:HL-slw,y:HL, width:slw,height:RW,fill:slc,opacity:.7}); // West
+  a('rect',{x:HR,    y:HL, width:slw,height:RW,fill:slc,opacity:.7}); // East
+
+  // ── Zebra crossings ──
+  const zw=7, zh=24, zsp=11;
+  const numZ=6;
+  const drawZebra=(ox,oy,horiz)=>{
+    for(let i=0;i<numZ;i++){
+      const x = horiz ? ox+i*(zw+zsp) : ox;
+      const y = horiz ? oy : oy+i*(zw+zsp);
+      const w = horiz ? zw : zh;
+      const h = horiz ? zh : zw;
+      a('rect',{x,y,width:w,height:h,fill:'#fff',opacity:.82});
+    }
+  };
+  // North side crossing
+  drawZebra(HL+4, HL-zh-4, true);
+  // South side crossing
+  drawZebra(HL+4, HR+4, true);
+  // West side crossing
+  drawZebra(HL-zh-4, HL+4, false);
+  // East side crossing
+  drawZebra(HR+4, HL+4, false);
+
+  // ── Pavement / curb corners ──
+  const pvmt='#1a2a14';
+  a('rect',{x:0,  y:0,  width:HL,height:HL,fill:pvmt}); // NW
+  a('rect',{x:HR, y:0,  width:W-HR,height:HL,fill:pvmt}); // NE
+  a('rect',{x:0,  y:HR, width:HL,height:H-HR,fill:pvmt}); // SW
+  a('rect',{x:HR, y:HR, width:W-HR,height:H-HR,fill:pvmt}); // SE
+
+  // ── Grass markings (curbs) ──
+  const cv='#1f3516', cw2=4;
+  [[0,HL,HL,HL],[HR,HL,W,HL],[0,HR,HL,HR],[HR,HR,W,HR], // horizontal curbs
+   [HL,0,HL,HL],[HR,0,HR,HL],[HL,HR,HL,H],[HR,HR,HR,H]  // vertical curbs
+  ].forEach(([x1,y1,x2,y2])=>a('line',{x1,y1,x2,y2,stroke:cv,'stroke-width':cw2}));
+
+  // ── Direction labels on pavement ──
+  [{t:'N',x:C,y:22},{t:'S',x:C,y:H-10},{t:'E',x:W-12,y:C},{t:'W',x:14,y:C}]
+    .forEach(({t,x,y})=>{
+      const el=svgEl('text',{x,y,'text-anchor':'middle','dominant-baseline':'middle',
+        fill:'#2d4a22','font-size':'22','font-weight':'900','font-family':'monospace'});
+      el.textContent=t; svg.appendChild(el);
+    });
+
+  // ── Traffic signal poles ── (realistic 3-light housings)
+  // Place 4 signals: NE corner (controls NS from south approach view),
+  // NW corner (controls NS), SE corner (controls EW), SW corner (controls EW)
+  const st = STATES[app.state];
+  // NS signals control NS traffic (placed at N and S sides)
+  drawSignal(svg, a, HL-28, HL-72, st.ns);   // NW corner, NS signal
+  drawSignal(svg, a, HR+8,  HR+8,  st.ns);   // SE corner, NS signal
+  // EW signals control EW traffic (placed at E and W sides)
+  drawSignal(svg, a, HR+8,  HL-72, st.ew);   // NE corner, EW signal
+  drawSignal(svg, a, HL-28, HR+8,  st.ew);   // SW corner, EW signal
+
+  // ── Vehicles ──
+  drawVehicles(svg, a, st);
+
+  // ── Intersection centre marking ──
+  a('rect',{x:C-1,y:HL,width:2,height:RW,fill:'#333',opacity:.3});
+  a('rect',{x:HL,y:C-1,width:RW,height:2,fill:'#333',opacity:.3});
+}
+
+function drawSignal(svg, a, x, y, light) {
+  // Pole
+  a('rect',{x:x+8,y:y+60,width:5,height:28,fill:'#444',rx:2});
+  // Housing box
+  a('rect',{x,y,width:22,height:58,fill:'#111',rx:4,stroke:'#2a2a2a','stroke-width':1.5});
+  // Shade line on housing
+  a('line',{x1:x+4,y1:y+2,x2:x+4,y2:y+56,stroke:'#222','stroke-width':1});
+  // Lights
+  [['red',light==='red'?'l-r':'l-off'],
+   ['yellow',light==='yellow'?'l-y':'l-off'],
+   ['green',light==='green'?'l-g':'l-off']
+  ].forEach(([fill,cls],i)=>{
+    const cx=x+11, cy=y+11+i*19;
+    const c=svgEl('circle',{cx,cy,r:8,fill});
+    c.setAttribute('class',cls);
+    svg.appendChild(c);
+  });
+}
+
+function drawVehicles(svg, a, st) {
+  const C=280, RW=110, HL=C-RW/2, HR=C+RW/2;
+  const nsMove = st.ns==='green';
+  const ewMove = st.ew==='green';
+
+  // NS southbound lane (right half: C to HR)
+  veh.ns_s.forEach(v=>{
+    if(v.y>560||v.y<-30)return;
+    // Stop at red before intersection
+    const inQueue = !nsMove && v.y > HL-50 && v.y < HL-10;
+    const x=C+14, vy=inQueue ? Math.min(v.y, HL-34) : v.y;
+    drawCar(a, x, vy, 16, 26, '#2563eb', '#60a5fa', 'v');
+  });
+  // NS northbound lane (left half: HL to C)
+  veh.ns_n.forEach(v=>{
+    if(v.y<-30||v.y>590)return;
+    const inQueue = !nsMove && v.y < HR+50 && v.y > HR+10;
+    const x=HL+14, vy=inQueue ? Math.max(v.y, HR+34) : v.y;
+    drawCar(a, x, vy, 16, 26, '#0e7490', '#22d3ee', 'v');
+  });
+  // EW eastbound lane (bottom half: C to HR)
+  veh.ew_e.forEach(v=>{
+    if(v.x>560||v.x<-30)return;
+    const inQueue = !ewMove && v.x > HL-50 && v.x < HL-10;
+    const vx=inQueue ? Math.min(v.x, HL-36) : v.x;
+    drawCar(a, vx, C+14, 26, 16, '#7c3aed', '#c084fc', 'h');
+  });
+  // EW westbound lane (top half: HL to C)
+  veh.ew_w.forEach(v=>{
+    if(v.x<-30||v.x>590)return;
+    const inQueue = !ewMove && v.x < HR+50 && v.x > HR+10;
+    const vx=inQueue ? Math.max(v.x, HR+36) : v.x;
+    drawCar(a, vx, HL+14, 26, 16, '#059669', '#34d399', 'h');
+  });
+}
+
+function drawCar(a, x, y, w, h, fill, accent, dir) {
+  // Body
+  a('rect',{x,y,width:w,height:h,fill,rx:3,stroke:accent,'stroke-width':.8});
+  // Windshield
+  if(dir==='v'){
+    a('rect',{x:x+3,y:y+4,width:w-6,height:8,fill:accent,rx:1,opacity:.7});
+    // Tail lights
+    a('rect',{x:x+1,y:y+h-4,width:4,height:3,fill:'#ef4444',rx:1,opacity:.9});
+    a('rect',{x:x+w-5,y:y+h-4,width:4,height:3,fill:'#ef4444',rx:1,opacity:.9});
+  } else {
+    a('rect',{x:x+3,y:y+3,width:8,height:h-6,fill:accent,rx:1,opacity:.7});
+    a('rect',{x:x+w-4,y:y+1,width:3,height:4,fill:'#ef4444',rx:1,opacity:.9});
+    a('rect',{x:x+w-4,y:y+h-5,width:3,height:4,fill:'#ef4444',rx:1,opacity:.9});
+  }
+}
+
+/* ── ANIMATION LOOP ───────────────────────────────────────── */
+function animLoop(ts) {
+  animId = requestAnimationFrame(animLoop);
+  if (!app.running || app.paused) return;
+  const dt = ts - lastAT;
+  if (dt < 40) return; // ~25fps
+  lastAT = ts;
+
+  const st = STATES[app.state];
+  const nsM = st.ns === 'green';
+  const ewM = st.ew === 'green';
+  const spd = 1.6;
+  const C=280,RW=110,HL=C-RW/2,HR=C+RW/2;
+
+  // NS southbound
+  veh.ns_s.forEach(v => {
+    if (!nsM) return;
+    v.y += spd;
+    if (v.y > 580) v.y = -30 - Math.random()*120;
+  });
+  // NS northbound
+  veh.ns_n.forEach(v => {
+    if (!nsM) return;
+    v.y -= spd;
+    if (v.y < -50) v.y = 590 + Math.random()*120;
+  });
+  // EW eastbound
+  veh.ew_e.forEach(v => {
+    if (!ewM) return;
+    v.x += spd;
+    if (v.x > 580) v.x = -30 - Math.random()*120;
+  });
+  // EW westbound
+  veh.ew_w.forEach(v => {
+    if (!ewM) return;
+    v.x -= spd;
+    if (v.x < -50) v.x = 590 + Math.random()*120;
+  });
+
+  renderIntersection();
+}
+
+/* ── FSM CONTROLLER ───────────────────────────────────────── */
+function getPhaseDuration(si) {
+  const isG = si===0||si===2;
+  let dur = isG ? app.greenDur : app.yellowDur;
+  if (app.smartMode && isG) {
+    const dens = si===0 ? app.nsDensity : app.ewDensity;
+    const minG = parseInt(document.getElementById('min-green').value);
+    const maxG = parseInt(document.getElementById('max-green').value);
+    dur = minG + Math.round((dens/10)*(maxG-minG));
+    document.getElementById('smart-computed').textContent = dur;
+  }
+  return dur;
+}
+
+function applyState() {
+  const st = STATES[app.state];
+  const nx = STATES[(app.state+1)%4];
+
+  // Signals
+  setSignal('ns', st.ns);
+  setSignal('ew', st.ew);
+
+  // Labels
+  setText('cur-state-lbl', st.label);
+  setText('cur-state-desc', st.desc);
+  setText('nxt-state-lbl', nx.label);
+  setText('nxt-state-desc', nx.desc);
+  setText('sb-state', st.label + ' — ' + st.desc);
+  setText('hd-state', st.label + ' · ' + (st.ns==='green'?'NS Green':st.ew==='green'?'EW Green':st.ns==='yellow'?'NS Yellow':'EW Yellow'));
+
+  // Binary register
+  setBits('bit-current',[{l:'Q1',v:st.q1},{l:'Q0',v:st.q0}]);
+  setBits('bit-next',   [{l:'D1',v:st.d1},{l:'D0',v:st.d0}]);
+
+  // FSM highlight
+  updateFSM(app.state);
+
+  // Table highlights
+  updateTableHL(app.state);
+  updateMiniTable();
+
+  // Render intersection
+  renderIntersection();
+}
+
+function setSignal(dir, light) {
+  ['r','y','g'].forEach(c => document.getElementById(`${dir}-${c}`).classList.remove('on'));
+  const m={red:'r',yellow:'y',green:'g'};
+  document.getElementById(`${dir}-${m[light]}`).classList.add('on');
+  const el=document.getElementById(`${dir}-txt`);
+  el.textContent=light.toUpperCase();
+  el.style.color=light==='green'?'var(--green)':light==='yellow'?'var(--yellow)':'var(--red)';
+}
+
+function setBits(id, bits) {
+  document.getElementById(id).innerHTML = bits.map(b=>
+    `<div class="bitbox ${b.v?'b1':'b0'}"><span class="bitbox-lbl">${b.l}</span>${b.v}</div>`
+  ).join('');
+}
+
+function updateFSM(idx) {
+  STATES.forEach((_,i) => {
+    const g = document.getElementById('fsm-s'+i);
+    if (!g) return;
+    const c = g.querySelector('circle');
+    if (i===idx) {
+      c.setAttribute('stroke-width','4');
+      c.style.filter='drop-shadow(0 0 14px currentColor)';
+    } else {
+      c.setAttribute('stroke-width','2.5');
+      c.style.filter='';
+    }
+  });
+  const lbl=document.getElementById('fsm-lbl');
+  if(lbl) lbl.textContent=`Active: ${STATES[idx].label} — ${STATES[idx].desc}`;
+}
+
+function updateTableHL(idx) {
+  document.querySelectorAll('#state-tbl-body tr').forEach((tr,i)=>tr.classList.toggle('arow',i===idx));
+  document.querySelectorAll('#mini-body tr').forEach((tr,i)=>tr.classList.toggle('arow',i===idx));
+}
+
+function updateMiniTable() {
+  const tb=document.getElementById('mini-body');
+  if(!tb)return;
+  tb.innerHTML=STATES.map((st,i)=>`
+    <tr class="${i===app.state?'arow':''}">
+      <td class="cc">${st.label}</td>
+      <td class="mono">${st.q1}${st.q0}</td>
+      <td class="${st.ns==='green'?'gc':st.ns==='yellow'?'yc':'rc'}">${st.ns.toUpperCase()}</td>
+      <td class="${st.ew==='green'?'gc':st.ew==='yellow'?'yc':'rc'}">${st.ew.toUpperCase()}</td>
+      <td class="tm">${i===0||i===2?app.greenDur:app.yellowDur}s</td>
+    </tr>`).join('');
+}
+
+function buildStateTable() {
+  const tb=document.getElementById('state-tbl-body');
+  if(!tb)return;
+  tb.innerHTML=STATES.map((st,i)=>`
+    <tr class="${i===app.state?'arow':''}">
+      <td class="cc">${st.label}</td><td>${st.q1}</td><td>${st.q0}</td>
+      <td class="tm">${st.next}</td><td>${st.d1}</td><td>${st.d0}</td>
+      <td class="${st.ns==='green'?'gc':st.ns==='yellow'?'yc':'rc'}">${st.ns.toUpperCase()}</td>
+      <td class="${st.ew==='green'?'gc':st.ew==='yellow'?'yc':'rc'}">${st.ew.toUpperCase()}</td>
+    </tr>`).join('');
+}
+
+/* ── TIMER ────────────────────────────────────────────────── */
+function startTimer() {
+  clearInterval(app.timer);
+  const dur = getPhaseDuration(app.state);
+  app.countdown = dur; app.maxCountdown = dur;
+  updateCD();
+  app.timer = setInterval(()=>{ app.countdown--; updateCD(); if(app.countdown<=0) advanceState(); },1000);
+}
+
+function advanceState() {
+  if(app.smartMode && app.pedestrianReq && (app.state===1||app.state===3)){
+    doPedPhase(); return;
+  }
+  if(app.smartMode && app.emergencyDir){
+    doEmergency(); return;
+  }
+  app.state=(app.state+1)%4;
+  applyState(); startTimer();
+}
+
+function updateCD() {
+  const n=document.getElementById('cd-num');
+  const arc=document.getElementById('cd-arc');
+  if(!n||!arc)return;
+  n.textContent=app.countdown>=0?app.countdown:'--';
+  setText('sb-timer', app.countdown+'s');
+  const frac=app.maxCountdown>0?app.countdown/app.maxCountdown:0;
+  // 2πr = 2π×38 = 238.76
+  arc.setAttribute('stroke-dashoffset', 238.76*(1-frac));
+  arc.setAttribute('stroke', frac>0.5?'var(--green)':frac>0.25?'var(--yellow)':'var(--red)');
+}
+
+/* ── SIM CONTROLS ─────────────────────────────────────────── */
+function simStart() {
+  if(app.running)return;
+  app.running=true; app.paused=false; app.state=0;
+  readSettings(); applyState(); startTimer(); updateBtns();
+  setMsg('Simulation running — S0: NS Green / EW Red');
+  setHdPill('run');
+  if(!animId) animId=requestAnimationFrame(animLoop);
+}
+
+function simPause() {
+  if(!app.running||app.paused)return;
+  app.paused=true; clearInterval(app.timer); app.timer=null;
+  updateBtns(); setMsg('Paused — click Resume to continue.');
+  setHdPill('pause');
+}
+
+function simResume() {
+  if(!app.running||!app.paused)return;
+  app.paused=false;
+  app.timer=setInterval(()=>{ app.countdown--; updateCD(); if(app.countdown<=0)advanceState(); },1000);
+  updateBtns(); setMsg('Simulation resumed.');
+  setHdPill('run');
+}
+
+function simReset() {
+  clearInterval(app.timer); app.timer=null;
+  if(animId){ cancelAnimationFrame(animId); animId=null; }
+  Object.assign(app,{running:false,paused:false,state:0,countdown:0,maxCountdown:0,emergencyDir:null,pedestrianReq:false});
+  // Reset vehicle positions
+  veh.ns_s.forEach((v,i)=>{ v.y=40+i*80; });
+  veh.ns_n.forEach((v,i)=>{ v.y=520-i*80; });
+  veh.ew_e.forEach((v,i)=>{ v.x=40+i*80; });
+  veh.ew_w.forEach((v,i)=>{ v.x=520-i*80; });
+  applyState(); updateCD();
+  document.getElementById('cd-num').textContent='--';
+  document.getElementById('cd-arc').setAttribute('stroke-dashoffset','0');
+  document.getElementById('cd-arc').setAttribute('stroke','var(--cyan)');
+  setText('sb-timer','--');
+  updateBtns(); setMsg('Reset. Press ▶ Start to begin.');
+  setHdPill('idle');
+  updateSmartDash();
+}
+
+function simNextState() {
+  if(!app.running||app.paused)return;
+  clearInterval(app.timer); app.timer=null;
+  app.state=(app.state+1)%4;
+  applyState(); startTimer();
+  setMsg('Manual advance → '+STATES[app.state].desc);
+}
+
+function updateBtns() {
+  document.getElementById('btn-start').disabled  = app.running;
+  document.getElementById('btn-pause').disabled  = !app.running||app.paused;
+  document.getElementById('btn-resume').disabled = !app.paused;
+  document.getElementById('btn-next').disabled   = !app.running||app.paused;
+}
+
+function setMsg(m){ setText('sim-msg',m); }
+function setText(id,v){ const e=document.getElementById(id); if(e)e.textContent=v; }
+
+function readSettings() {
+  app.greenDur  = parseInt(document.getElementById('green-dur').value);
+  app.yellowDur = parseInt(document.getElementById('yellow-dur').value);
+}
+
+function updateDurLabel(iid, lid) {
+  document.getElementById(lid).textContent = document.getElementById(iid).value+'s';
+  if(app.running&&!app.paused){ app.greenDur=parseInt(document.getElementById('green-dur').value); app.yellowDur=parseInt(document.getElementById('yellow-dur').value); }
+}
+
+function setHdPill(mode) {
+  const pill=document.getElementById('hd-pill');
+  const dot=document.getElementById('hd-dot');
+  const txt=document.getElementById('hd-pill-txt');
+  pill.className='status-pill';
+  if(mode==='run'){   pill.classList.add('pill-run');   dot.className='dot dot-green'; txt.textContent='RUNNING'; }
+  else if(mode==='pause'){pill.classList.add('pill-pause');dot.className='dot dot-amber';txt.textContent='PAUSED'; }
+  else{                   pill.classList.add('pill-idle'); dot.className='dot dot-blue'; txt.textContent='IDLE'; }
+}
+
+/* ── SMART MODE ───────────────────────────────────────────── */
+function toggleSmartMode() {
+  app.smartMode=document.getElementById('smart-toggle').checked;
+  const p=document.getElementById('smart-panel');
+  p.style.opacity=app.smartMode?'1':'0.4';
+  p.style.pointerEvents=app.smartMode?'all':'none';
+  const b=document.getElementById('smart-badge');
+  b.textContent=app.smartMode?'ENABLED':'DISABLED';
+  b.className='status-pill '+(app.smartMode?'pill-run':'pill-idle');
+}
+
+function updateSmartDensity() {
+  app.nsDensity=parseInt(document.getElementById('ns-density').value);
+  app.ewDensity=parseInt(document.getElementById('ew-density').value);
+  setText('ns-density-val',app.nsDensity);
+  setText('ew-density-val',app.ewDensity);
+  const nb=document.getElementById('ns-qbar');
+  const eb=document.getElementById('ew-qbar');
+  nb.style.width=(app.nsDensity*10)+'%';
+  eb.style.width=(app.ewDensity*10)+'%';
+  nb.style.background=app.nsDensity>7?'var(--red)':app.nsDensity>4?'var(--yellow)':'var(--green)';
+  eb.style.background=app.ewDensity>7?'var(--red)':app.ewDensity>4?'var(--yellow)':'var(--green)';
+  updateSmartDash();
+}
+
+function updateSmartLabel(iid,lid){ setText(lid,document.getElementById(iid).value+'s'); }
+
+function updateSmartDash() {
+  setText('smart-ns-wait',app.nsDensity);
+  setText('smart-ew-wait',app.ewDensity);
+  setText('smart-override',app.emergencyDir||(app.pedestrianReq?'PED':'NONE'));
+}
+
+function requestEmergency(dir) {
+  if(!app.smartMode){alert('Enable Smart Mode first.');return;}
+  if(!app.running){alert('Start the simulation first.');return;}
+  app.emergencyDir=dir;
+  const el=document.getElementById('emergency-status');
+  el.textContent=`⚡ Emergency ${dir} requested — override at next yellow→red boundary.`;
+  el.style.color='var(--red)';
+  updateSmartDash();
+}
+
+function requestPedestrian() {
+  if(!app.smartMode){alert('Enable Smart Mode first.');return;}
+  if(!app.running){alert('Start the simulation first.');return;}
+  app.pedestrianReq=true;
+  const el=document.getElementById('pedestrian-status');
+  el.textContent='🚶 Pedestrian crossing pending — served at next yellow→red boundary.';
+  el.style.color='var(--yellow)';
+  updateSmartDash();
+}
+
+function doPedPhase() {
+  clearInterval(app.timer);
+  setSignal('ns','red'); setSignal('ew','red');
+  setMsg('🚶 PEDESTRIAN PHASE — All stopped (3 seconds)');
+  app.pedestrianReq=false;
+  setText('pedestrian-status','Pedestrian phase served. Resuming normal cycle.');
+  document.getElementById('pedestrian-status').style.color='var(--green)';
+  updateSmartDash();
+  setTimeout(()=>{ app.state=(app.state+1)%4; applyState(); startTimer(); setMsg('Normal cycle resumed.'); },3000);
+}
+
+function doEmergency() {
+  const target=app.emergencyDir==='NS'?0:2;
+  if(app.state===target){
+    app.emergencyDir=null;
+    setText('emergency-status','Direction already has green. Request cleared.');
+    updateSmartDash();
+    app.state=(app.state+1)%4; applyState(); startTimer(); return;
+  }
+  app.state=target; app.emergencyDir=null;
+  setText('emergency-status','✅ Emergency override served. Normal cycle resuming.');
+  document.getElementById('emergency-status').style.color='var(--green)';
+  setText('smart-override','NONE');
+  applyState();
+  const maxG=parseInt(document.getElementById('max-green').value);
+  app.countdown=maxG; app.maxCountdown=maxG; updateCD();
+  app.timer=setInterval(()=>{ app.countdown--; updateCD(); if(app.countdown<=0)advanceState(); },1000);
+  setMsg('🚨 EMERGENCY — Extended green for '+app.emergencyDir||'requested direction');
+  updateSmartDash();
+}
+
+/* ── VISIBILITY CHANGE (prevent timer accumulation) ───────── */
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){
+    if(app.running&&!app.paused){ clearInterval(app.timer); app.timer=null; app._hiddenAt=Date.now(); }
+  } else {
+    if(app.running&&!app.paused&&!app.timer){
+      if(app._hiddenAt){ app.countdown=Math.max(0,app.countdown-Math.floor((Date.now()-app._hiddenAt)/1000)); app._hiddenAt=null; }
+      if(app.countdown<=0){ advanceState(); }
+      else { app.timer=setInterval(()=>{ app.countdown--; updateCD(); if(app.countdown<=0)advanceState(); },1000); }
+    }
+  }
+});
+
+/* ── INIT ─────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded',()=>{
+  renderIntersection();
+  buildStateTable();
+  updateMiniTable();
+  applyState();
+  updateBtns();
+  updateSmartDensity();
+  // Start animation loop (idle — vehicles don't move until sim starts)
+  animId=requestAnimationFrame(animLoop);
+});
+</script>
+</body>
+</html>
